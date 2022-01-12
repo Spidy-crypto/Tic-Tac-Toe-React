@@ -1,39 +1,56 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import "./home.css";
-import * as SockJS from "sockjs-client";
-import { Stomp } from "@stomp/stompjs";
+import { useLocation } from "react-router-dom";
+import Socket from "./socket";
 
-const SOCKET_URL = "http://localhost:8080/webSocket";
+let userId = 35;
+let socket = new Socket();
 
-var socket = new SockJS(SOCKET_URL);
-let stompClient = Stomp.over(socket);
 function Board(props) {
-  // const { gameId } = useParams();
-  //websocket conection
-
+  const { gameId } = useParams();
   const [size, setSize] = useState(0);
   const [moves, setMoves] = useState([]);
   const [board, setBoard] = useState([[]]);
-  const [isDisabled, setDisabled] = useState(false);
+  const [disabled, setDisabled] = useState(false);
+  const [symbol, setSymbol] = useState("O");
+  const [messages, setMessages] = useState([]);
+  const [isInitialize, setIsInitialize] = useState(false);
 
-  if (!stompClient.connected) {
-    stompClient.connect({}, (frame) => {
-      console.log("Connected: " + frame);
-      stompClient.subscribe("/topic/move", (data) => {
-        changeMove(JSON.parse(data.body));
-      });
+  const location = useLocation();
+
+  const changeMove = (move) => {
+    setBoard((board) => {
+      let row = Math.ceil(move.location / size) - 1;
+      let col = (move.location % size) - 1;
+      if (col < 0) {
+        col += size;
+      }
+      let newBoard = [...board];
+      newBoard[row][col] = move.symbol;
+      return newBoard;
     });
-  }
+  };
 
   let cell = 0;
   useEffect(() => {
-    fetch("http://localhost:8080/game/35")
+    if (location.state.user1Id == userId) {
+      setSymbol("X");
+    }
+
+    fetch("http://localhost:8080/game/" + gameId)
       .then((res) => res.json())
       .then((data) => {
+        if (data.status == "Completed") {
+          setDisabled(true);
+        }
         setSize(data.size);
         setMoves(data.movesDtoList);
       });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   useEffect(() => {
@@ -47,6 +64,16 @@ function Board(props) {
     }
     setBoard(rows);
   }, [size]);
+
+  useEffect(() => {
+    if (isInitialize && size > 0) {
+      socket.connect(changeMove, messages, setMessages, gameId);
+    }
+  }, [isInitialize, size]);
+
+  useEffect(() => {
+    setIsInitialize(true);
+  }, [board]);
 
   useEffect(() => {
     let newBoard = [...board];
@@ -63,40 +90,25 @@ function Board(props) {
     setBoard(newBoard);
   }, [moves]);
 
-  const changeMove = (move) => {
-    let row = Math.ceil(move.location / size) - 1;
-    let col = (move.location % size) - 1;
-    if (col < 0) {
-      col += size;
-    }
-    let newBoard = [...board];
-    newBoard[row][col] = move.symbol;
-    setBoard(newBoard);
-  };
-
   const handleCellClick = (id) => {
-    fetch("http://localhost:8080/addMove", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        location: id,
-        gameId: 126,
-        userId: 35,
-        symbol: "x",
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data) {
-          alert("You are winner!!");
-        }
+    if (!disabled) {
+      fetch("http://localhost:8080/addMove", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          location: id,
+          gameId: gameId,
+          userId: userId,
+          symbol: symbol,
+        }),
       });
+    }
   };
 
   return (
-    <div style={{ height: "70vh" }}>
+    <div style={{ height: "70vh", display: "flex" }}>
       <table>
         <tbody>
           {board &&
@@ -121,6 +133,11 @@ function Board(props) {
             })}
         </tbody>
       </table>
+      <div style={{ marginRight: "5%" }}>
+        {messages.map((message) => (
+          <p>{message}</p>
+        ))}
+      </div>
     </div>
   );
 }
