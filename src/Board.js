@@ -1,43 +1,24 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import "./home.css";
-import { useLocation } from "react-router-dom";
 import Socket from "./socket";
 
-let userId = 35;
-let socket = new Socket();
+let userId = 1;
 
+let symbol = "X";
 function Board(props) {
+  let socket = new Socket();
+
+  let cell = 0;
   const { gameId } = useParams();
   const [size, setSize] = useState(0);
   const [moves, setMoves] = useState([]);
   const [board, setBoard] = useState([[]]);
   const [disabled, setDisabled] = useState(false);
-  const [symbol, setSymbol] = useState("O");
   const [messages, setMessages] = useState([]);
   const [isInitialize, setIsInitialize] = useState(false);
 
-  const location = useLocation();
-
-  const changeMove = (move) => {
-    setBoard((board) => {
-      let row = Math.ceil(move.location / size) - 1;
-      let col = (move.location % size) - 1;
-      if (col < 0) {
-        col += size;
-      }
-      let newBoard = [...board];
-      newBoard[row][col] = move.symbol;
-      return newBoard;
-    });
-  };
-
-  let cell = 0;
   useEffect(() => {
-    if (location.state.user1Id == userId) {
-      setSymbol("X");
-    }
-
     fetch("http://localhost:8080/game/" + gameId)
       .then((res) => res.json())
       .then((data) => {
@@ -66,16 +47,6 @@ function Board(props) {
   }, [size]);
 
   useEffect(() => {
-    if (isInitialize && size > 0) {
-      socket.connect(changeMove, messages, setMessages, gameId);
-    }
-  }, [isInitialize, size]);
-
-  useEffect(() => {
-    setIsInitialize(true);
-  }, [board]);
-
-  useEffect(() => {
     let newBoard = [...board];
     moves.forEach((move) => {
       let row = Math.ceil(move.location / size) - 1;
@@ -89,6 +60,43 @@ function Board(props) {
     });
     setBoard(newBoard);
   }, [moves]);
+
+  const changeMove = (move) => {
+    if (!move.result) {
+      let arr = [...messages];
+      if (userId == 1) {
+        symbol = "O";
+        userId = 2;
+        arr.push("User2's turn");
+      } else {
+        symbol = "X";
+        userId = 1;
+        arr.push("User1's turn");
+      }
+      setMessages(arr);
+    }
+
+    setBoard((board) => {
+      let row = Math.ceil(move.location / size) - 1;
+      let col = (move.location % size) - 1;
+      if (col < 0) {
+        col += size;
+      }
+      let newBoard = [...board];
+      newBoard[row][col] = move.symbol;
+      return newBoard;
+    });
+  };
+
+  useEffect(() => {
+    setIsInitialize(true);
+  }, [board]);
+
+  useEffect(() => {
+    if (isInitialize && size > 0) {
+      socket.connect(changeMove, messages, setMessages, gameId);
+    }
+  }, [isInitialize, size]);
 
   const handleCellClick = (id) => {
     if (!disabled) {

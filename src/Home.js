@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import "./home.css";
 import { useNavigate } from "react-router-dom";
 
-let userId = 35;
 function Home(props) {
   const [size, setSize] = useState(0);
   const [games, setGames] = useState([]);
@@ -13,13 +12,13 @@ function Home(props) {
     if (link) {
       let url = link.split("/");
       let gameId = url[4];
-      fetch("http://localhost:8080/joinGame/" + gameId + "/" + userId, {
+      fetch("http://localhost:8080/joinGame/" + gameId + "/" + 2, {
         method: "PUT",
       })
         .then((res) => res.json())
         .then((data) => {
           if (data) {
-            window.location.reload();
+            navigate("/game/" + gameId);
           }
         });
     }
@@ -32,15 +31,18 @@ function Home(props) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ user1Id: userId, size: size }),
+        body: JSON.stringify({ user1Id: 1, size: size }),
       })
         .then((res) => res.json())
-        .then((data) => navigate("/game/" + data.gameId, { state: data }));
+        .then((data) => navigate("/game/" + data.gameId));
     }
   };
 
   useEffect(() => {
-    fetch("http://localhost:8080/getGames/" + userId)
+    if (localStorage.getItem("user") == null) {
+      localStorage.setItem("user", 1);
+    }
+    fetch("http://localhost:8080/getGames/" + 1)
       .then((res) => res.json())
       .then((data) => setGames(data));
   }, []);

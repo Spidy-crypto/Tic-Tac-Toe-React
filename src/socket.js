@@ -22,6 +22,7 @@ class Socket {
       });
     }
   }
+
   disconnect() {
     if (this.stompClient != null) {
       this.stompClient.disconnect(() => {
