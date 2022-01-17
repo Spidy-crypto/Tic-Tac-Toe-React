@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import "./home.css";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, createSearchParams } from "react-router-dom";
 
 function Home(props) {
   const [size, setSize] = useState(0);
@@ -18,7 +18,12 @@ function Home(props) {
         .then((res) => res.json())
         .then((data) => {
           if (data) {
-            navigate("/game/" + gameId);
+            navigate(
+              {
+                pathname: "/game/" + gameId + "?id=2",
+              },
+              { state: data }
+            );
           }
         });
     }

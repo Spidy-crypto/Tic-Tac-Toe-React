@@ -1,11 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import "./home.css";
 import Socket from "./socket";
 
-let userId = 1;
-
-let symbol = "X";
 function Board(props) {
   let socket = new Socket();
 
@@ -17,13 +14,25 @@ function Board(props) {
   const [disabled, setDisabled] = useState(false);
   const [messages, setMessages] = useState([]);
   const [isInitialize, setIsInitialize] = useState(false);
-
+  const [currentUser, setCurrentUser] = useState(1);
+  const [lastMoveUserId, setLastMoveUserId] = useState(-1);
+  const [finishStatus, setFinishStatus] = useState(false);
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [symbol, setSymbol] = useState("X");
+  const [turn, setTurn] = useState("");
+  const [count, setCount] = useState(0);
   useEffect(() => {
+    setDisabled(true);
     fetch("http://localhost:8080/game/" + gameId)
       .then((res) => res.json())
       .then((data) => {
-        if (data.status == "Completed") {
+        if (data.status == "Completed" || data.status == "Terminated") {
+          let arr = [...messages];
+          arr.push("Game is " + data.status);
+          setMessages(arr);
           setDisabled(true);
+          console.log("here");
         }
         setSize(data.size);
         setMoves(data.movesDtoList);
@@ -46,6 +55,30 @@ function Board(props) {
     setBoard(rows);
   }, [size]);
 
+  const onBackButtonEvent = (e) => {
+    e.preventDefault();
+    if (!finishStatus) {
+      if (window.confirm("Do you want to go back ?")) {
+        setFinishStatus(true);
+        fetch("http://localhost:8080/terminateGame/" + gameId, {
+          method: "PUT",
+        });
+        navigate("/");
+      } else {
+        window.history.pushState(null, null, window.location.pathname);
+        setFinishStatus(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    window.history.pushState(null, null, window.location.pathname);
+    window.addEventListener("popstate", onBackButtonEvent);
+    return () => {
+      window.removeEventListener("popstate", onBackButtonEvent);
+    };
+  }, []);
+
   useEffect(() => {
     let newBoard = [...board];
     moves.forEach((move) => {
@@ -61,19 +94,30 @@ function Board(props) {
     setBoard(newBoard);
   }, [moves]);
 
-  const changeMove = (move) => {
-    if (!move.result) {
-      let arr = [...messages];
-      if (userId == 1) {
-        symbol = "O";
-        userId = 2;
-        arr.push("User2's turn");
+  useEffect(() => {
+    if (!disabled) {
+      if (lastMoveUserId == 1) {
+        setTurn("User2's Turn");
       } else {
-        symbol = "X";
-        userId = 1;
-        arr.push("User1's turn");
+        setTurn("User1's Turn");
       }
-      setMessages(arr);
+    }
+  }, [lastMoveUserId]);
+
+  const changeMove = (move) => {
+    setLastMoveUserId(move.userId);
+    let userId = searchParams.get("id");
+    if (userId) {
+      setSymbol("O");
+      setCurrentUser(2);
+    } else {
+      setSymbol("X");
+      setCurrentUser(1);
+    }
+    if (currentUser == lastMoveUserId) {
+      setDisabled(true);
+    } else {
+      setDisabled(false);
     }
 
     setBoard((board) => {
@@ -94,11 +138,11 @@ function Board(props) {
 
   useEffect(() => {
     if (isInitialize && size > 0) {
-      socket.connect(changeMove, messages, setMessages, gameId);
+      socket.connect(changeMove, messages, setMessages, gameId, setDisabled);
     }
   }, [isInitialize, size]);
 
-  const handleCellClick = (id) => {
+  const handleCellClick = async (id) => {
     if (!disabled) {
       fetch("http://localhost:8080/addMove", {
         method: "POST",
@@ -108,10 +152,17 @@ function Board(props) {
         body: JSON.stringify({
           location: id,
           gameId: gameId,
-          userId: userId,
+          userId: currentUser,
           symbol: symbol,
         }),
-      });
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.result) {
+            setDisabled(true);
+            setCount(count + 1);
+          }
+        });
     }
   };
 
@@ -142,9 +193,7 @@ function Board(props) {
         </tbody>
       </table>
       <div style={{ marginRight: "5%" }}>
-        {messages.map((message) => (
-          <p>{message}</p>
-        ))}
+        {messages && messages.map((message) => <p>{message}</p>)}
       </div>
     </div>
   );

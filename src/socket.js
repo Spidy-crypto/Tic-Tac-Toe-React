@@ -1,5 +1,6 @@
 import * as SockJS from "sockjs-client";
 import { Stomp } from "@stomp/stompjs";
+
 const SOCKET_URL = "http://localhost:8080/webSocket";
 
 class Socket {
@@ -8,7 +9,7 @@ class Socket {
     this.stompClient = Stomp.over(this.socket);
   }
 
-  connect(changeMove, messages, setMessages, gameId) {
+  connect(changeMove, messages, setMessages, gameId, setDisabled) {
     if (!this.stompClient.connected) {
       this.stompClient.connect({}, (frame) => {
         this.stompClient.subscribe("/topic/move/" + gameId, (data) => {
@@ -18,6 +19,9 @@ class Socket {
           let arr = [...messages];
           arr.push(data.body);
           setMessages(arr);
+        });
+        this.stompClient.subscribe("/topic/user2/" + gameId, (data) => {
+          setDisabled(false);
         });
       });
     }
